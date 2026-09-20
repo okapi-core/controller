@@ -1,0 +1,118 @@
+name: okapi
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: okapi_oscar
+      POSTGRES_USER: okapi_oscar_user_admin
+      POSTGRES_PASSWORD: okapi_oscar_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U okapi_oscar_user_admin -d okapi_oscar"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.12
+    environment:
+      CLICKHOUSE_PASSWORD: okapi_testing_password
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - clickhouse-logs:/var/log/clickhouse-server
+      - ./clickhouse-users.xml:/etc/clickhouse-server/users.d/okapi-local.xml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --password \"$${CLICKHOUSE_PASSWORD}\" --query 'SELECT 1'"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  ops-ch-migrate:
+    image: ghcr.io/okapi-core/ops:0.0.5
+    command:
+      - ch-migrate
+      - --host
+      - clickhouse
+      - --port
+      - "8123"
+      - --user
+      - default
+      - --password
+      - okapi_testing_password
+    environment:
+      OKAPI_CLICKHOUSE_HOST: clickhouse
+      OKAPI_CLICKHOUSE_PORT: 8123
+      OKAPI_CLICKHOUSE_USERNAME: default
+      OKAPI_CLICKHOUSE_PASSWORD: okapi_testing_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+
+  ops-pg-migrate:
+    image: ghcr.io/okapi-core/ops:0.0.5
+    command: ["pg-migrate"]
+    environment:
+      OKAPI_WEB_DB_MIGRATION_URL: jdbc:postgresql://postgres:5432/okapi_oscar?currentSchema=okapi_web
+      OKAPI_WEB_DB_MIGRATION_USER: okapi_web_migration_user
+      OKAPI_WEB_DB_MIGRATION_PASSWORD: okapi_web_migration_password
+    depends_on:
+      ops-ch-migrate:
+        condition: service_completed_successfully
+
+  ingester:
+    image: ghcr.io/okapi-core/ingester:0.0.5
+    command: ["--spring.profiles.active=ch"]
+    environment:
+      OKAPI_CLICKHOUSE_HOST: clickhouse
+      OKAPI_CLICKHOUSE_PORT: 8123
+      OKAPI_CLICKHOUSE_PASSWORD: okapi_testing_password
+    ports:
+      - "9009:9009"
+    depends_on:
+      ops-pg-migrate:
+        condition: service_completed_successfully
+
+  oscar:
+    image: ghcr.io/okapi-core/oscar:0.0.5
+    command:
+      - --spring.profiles.active=dummy
+      - --okapi.oscar.model.core-model-provider=dummy
+      - --okapi.oscar.vault.address=
+      - --okapi.oscar.cluster.endpoint=http://ingester:9009
+      - --spring.datasource.url=jdbc:postgresql://postgres:5432/okapi_oscar?currentSchema=okapi_oscar
+      - --spring.datasource.username=okapi_oscar_user
+      - --spring.datasource.password=okapi_oscar_password
+    ports:
+      - "9002:9002"
+    depends_on:
+      ops-pg-migrate:
+        condition: service_completed_successfully
+
+  web:
+    image: ghcr.io/okapi-core/web:0.0.5
+    environment:
+      OKAPI_CLUSTER_ENDPOINT: http://ingester:9009
+      OKAPI_OSCAR_ENDPOINT: http://oscar:9002
+      OKAPI_WEB_DB_URL: jdbc:postgresql://postgres:5432/okapi_oscar?currentSchema=okapi_web
+      OKAPI_WEB_DB_USER: okapi_web_user
+      OKAPI_WEB_DB_PASSWORD: okapi_web_password
+      OKAPI_WEB_DB_MIGRATION_URL: jdbc:postgresql://postgres:5432/okapi_oscar?currentSchema=okapi_web
+      OKAPI_WEB_DB_MIGRATION_USER: okapi_web_migration_user
+      OKAPI_WEB_DB_MIGRATION_PASSWORD: okapi_web_migration_password
+    ports:
+      - "9001:9001"
+    depends_on:
+      ingester:
+        condition: service_started
+      oscar:
+        condition: service_started
+
+volumes:
+  postgres-data:
+  clickhouse-data:
+  clickhouse-logs:

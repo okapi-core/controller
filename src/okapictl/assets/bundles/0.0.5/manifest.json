@@ -1,0 +1,5 @@
+{
+  "bundle_version": "0.0.5",
+  "local_install_compose": "local-install.compose.yaml",
+  "clickhouse_config": "clickhouse-users.xml"
+}

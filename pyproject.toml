@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "okapi-ctl"
+version = "0.0.4"
+description = "The Okapi installation and demo command-line controller"
+authors = ["Okapi contributors"]
+license = "Apache-2.0"
+readme = "README.md"
+packages = [{ include = "okapictl", from = "src" }]
+include = ["src/okapictl/assets/**/*"]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+
+[tool.poetry.scripts]
+okapictl = "okapictl.cli:main"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
