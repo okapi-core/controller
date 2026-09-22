@@ -8,3 +8,5 @@ def test_resolver_discovers_versioned_local_bundle():
     assert assets.compose_source.is_file()
     assert assets.postgres_init_source.is_file()
     assert assets.clickhouse_config_source.is_file()
+    assert assets.otel_compose_source.is_file()
+    assert assets.otel_collector_config_source.is_file()

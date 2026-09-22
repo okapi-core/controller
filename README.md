@@ -17,6 +17,39 @@ The local installer requires Docker with the Compose v2 plugin. It starts the
 versioned, package-bundled Compose project and waits for the Okapi health
 endpoints before returning.
 
+## Local OpenTelemetry demo
+
+The local demo starts the pinned OpenTelemetry Astronomy Shop together with
+the matching Okapi bundle and an OpenTelemetry Collector configured to export
+traces, metrics, and logs to Okapi. Docker and Git are required. The demo
+checkout is stored under the controller state directory and is checked out at
+the revision pinned by the controller release.
+
+```sh
+okapictl demo --local
+```
+
+The command starts the demo's core/minimal Compose configuration without its
+separate observability backends or Kafka-based services, then waits for the
+Okapi services and demo frontend. It prints:
+
+```text
+OpenTelemetry demo is ready: http://localhost:8080
+Okapi is ready: http://localhost:9001
+```
+
+Set `OPENAI_API_KEY` before running if the demo should use a real OpenAI
+integration. The local workflow supplies a non-production placeholder when no
+key is configured. For example:
+
+```sh
+export OPENAI_API_KEY=sk-proj-<your-key>
+okapictl demo --local
+```
+
+The key is passed to Okapi Oscar through the Compose environment and is not
+stored in the controller bundle. Do not commit it to `.env` or `.env.okapi`.
+
 Kubernetes, AWS, and complete demo workflows are intentionally scaffolded but
 not yet implemented.
 

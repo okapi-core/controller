@@ -7,5 +7,7 @@
     "ingester-values.yaml": "k8s-values/ingester-values.yaml",
     "oscar-values.yaml": "k8s-values/oscar-values.yaml",
     "web-values.yaml": "k8s-values/web-values.yaml"
-  }
+  },
+  "otel_compose": "otel-compose.extras.yaml",
+  "otel_collector_config": "otelcol-config-extras.yml"
 }
