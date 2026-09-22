@@ -1,0 +1,22 @@
+image:
+  repository: ghcr.io/okapi-core/oscar
+  tag: 0.0.5
+
+ingester:
+  endpoint: http://ingester:9009
+
+postgres:
+  host: "<postgres-service>"
+  port: 5432
+  database: "<database>"
+  schema: okapi_oscar
+  existingSecret: okapi-postgres
+  usernameKey: oscar-username
+  passwordKey: oscar-password
+
+vault:
+  address: ""
+
+openai:
+  existingSecret: okapi-openai
+  apiKeyKey: openai-api-key

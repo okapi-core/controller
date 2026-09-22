@@ -1,5 +1,11 @@
 {
   "bundle_version": "0.0.5",
   "local_install_compose": "local-install.compose.yaml",
-  "clickhouse_config": "clickhouse-users.xml"
+  "clickhouse_config": "clickhouse-users.xml",
+  "k8s_values": {
+    "ops-values.yaml": "k8s-values/ops-values.yaml",
+    "ingester-values.yaml": "k8s-values/ingester-values.yaml",
+    "oscar-values.yaml": "k8s-values/oscar-values.yaml",
+    "web-values.yaml": "k8s-values/web-values.yaml"
+  }
 }

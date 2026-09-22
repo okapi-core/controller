@@ -2,13 +2,15 @@
 
 import argparse
 import sys
+from pathlib import Path
 
 from .assets import BundleAssetResolver
-from .config import LocalInstallConfig
+from .config import KubernetesInstallConfig, LocalInstallConfig
 from .errors import OkapiCtlError, UnsupportedWorkflowError
 from .health import HealthChecker
 from .runner import CommandRunner
 from .workflows.local_install import LocalInstaller
+from .workflows.kubernetes_install import KubernetesInstaller
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -20,6 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
     install_modes.add_argument("--local", action="store_true")
     install_modes.add_argument("--k8s", action="store_true")
     install.add_argument("--project-name", default="okapi")
+    install.add_argument("--namespace", default="okapi")
+    install.add_argument("--values-dir", type=Path)
     install.add_argument("--timeout", type=int, default=180)
 
     demo = commands.add_parser("demo", help="Run an Okapi demo.")
@@ -45,7 +49,15 @@ def main(argv: list[str] | None = None) -> int:
             ).run()
             return 0
         if args.command == "install" and args.k8s:
-            raise UnsupportedWorkflowError("Kubernetes installation is not implemented yet.")
+            KubernetesInstaller(
+                KubernetesInstallConfig(
+                    namespace=args.namespace,
+                    values_directory=args.values_dir,
+                    timeout_seconds=args.timeout,
+                ),
+                runner=CommandRunner(),
+                asset_resolver=BundleAssetResolver(),
+            ).run()
         if args.command == "demo":
             raise UnsupportedWorkflowError("Demo workflows are not implemented yet.")
         raise OkapiCtlError("No workflow selected.")

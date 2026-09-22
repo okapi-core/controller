@@ -1,0 +1,18 @@
+image:
+  repository: ghcr.io/okapi-core/web
+  tag: 0.0.5
+
+postgres:
+  host: "<postgres-service>"
+  port: 5432
+  database: "<database>"
+  schema: okapi_web
+  existingSecret: okapi-postgres
+  usernameKey: web-username
+  passwordKey: web-password
+
+ingester:
+  endpoint: http://ingester:9009
+
+oscar:
+  endpoint: http://oscar:9002

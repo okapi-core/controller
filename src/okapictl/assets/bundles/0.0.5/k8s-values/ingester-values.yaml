@@ -1,0 +1,10 @@
+image:
+  repository: ghcr.io/okapi-core/ingester
+  tag: 0.0.5
+
+clickhouse:
+  host: "<clickhouse-service>"
+  port: 8123
+  existingSecret: okapi-clickhouse
+  usernameKey: username
+  passwordKey: password
