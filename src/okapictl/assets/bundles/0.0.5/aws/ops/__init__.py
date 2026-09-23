@@ -1,1 +1,0 @@
-"""Operator tooling package root."""

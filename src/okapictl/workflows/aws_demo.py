@@ -1,11 +1,13 @@
 """AWS OpenTelemetry demo workflow."""
 
 from ..assets import BundleAssetResolver
+from ..aws.artifacts import CodeDeployArtifacts
+from ..aws.cli import AwsCli
+from ..aws.codedeploy import AwsDemoOrchestrator
+from ..aws.terraform import Terraform
 from ..config import AwsDemoConfig
-from ..errors import OkapiCtlError
 from ..runner import CommandRunner
 from ..state import write_state
-import sys
 
 
 class AwsDemoRunner:
@@ -23,31 +25,17 @@ class AwsDemoRunner:
         bundle = self.asset_resolver.resolve(self.config.bundle_version)
         aws_directory = bundle.materialize_aws_assets(self.config.aws_directory)
         terraform_directory = aws_directory / "terraform"
-
-        init_args = ["terraform", "init", "-input=false"]
-        self.runner.run(init_args, cwd=str(terraform_directory))
-
-        apply_args = ["terraform", "apply"]
-        if self.config.auto_approve:
-            apply_args.append("-auto-approve")
-        # The controller release and the deployed Okapi images must stay in
-        # lockstep. A user-provided tfvars file may configure the repository,
-        # but cannot accidentally select a different Okapi image tag.
-        apply_args.extend(["-var", f"okapi_image_tag={self.config.bundle_version}"])
-        if self.config.terraform_vars_file is not None:
-            vars_file = self.config.terraform_vars_file.expanduser().resolve()
-            if not vars_file.is_file():
-                raise OkapiCtlError(f"Terraform variables file was not found: {vars_file}")
-            apply_args.extend(["-var-file", str(vars_file)])
-        self.runner.run(apply_args, cwd=str(terraform_directory))
-
-        # This is the copied, versioned operator from okapi-demo-tf. It packages
-        # and uploads both CodeDeploy bundles, then redeploys Okapi before the
-        # full OTEL demo so the collector has a live ingester endpoint.
-        self.runner.run(
-            [sys.executable, "-m", "ops.okapi_demo_ops", "start", "--redeploy"],
-            cwd=str(aws_directory),
+        terraform = Terraform(terraform_directory, self.runner)
+        terraform.init()
+        terraform.apply(
+            variables_file=self.config.terraform_vars_file,
+            okapi_version=self.config.bundle_version,
+            auto_approve=self.config.auto_approve,
         )
+        outputs = terraform.outputs()
+        aws_cli = AwsCli(self.runner, outputs["aws_region"])
+        artifacts = CodeDeployArtifacts(aws_directory, aws_cli)
+        AwsDemoOrchestrator(aws_cli, outputs, artifacts).converge()
         write_state(
             self.config.state_file,
             {
