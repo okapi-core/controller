@@ -20,6 +20,7 @@ class BundleAssets:
     k8s_values_sources: dict[str, Any]
     otel_compose_source: Any
     otel_collector_config_source: Any
+    aws_source: Any
 
     def materialize(self, destination: Path) -> tuple[Path, Path, Path]:
         destination.mkdir(parents=True, exist_ok=True)
@@ -51,6 +52,19 @@ class BundleAssets:
         )
         return compose_file, collector_file
 
+    def materialize_aws_assets(self, destination: Path) -> Path:
+        """Materialize the AWS Terraform and CodeDeploy bundle."""
+        destination.mkdir(parents=True, exist_ok=True)
+        for source in self.aws_source.iterdir():
+            target = destination / source.name
+            if source.is_dir():
+                import shutil
+
+                shutil.copytree(source, target, dirs_exist_ok=True)
+            else:
+                target.write_bytes(source.read_bytes())
+        return destination
+
 
 class BundleAssetResolver:
     """Resolve assets from the versioned bundle shipped in the package."""
@@ -65,6 +79,7 @@ class BundleAssetResolver:
             k8s_values_names = manifest["k8s_values"]
             otel_compose_name = manifest["otel_compose"]
             otel_collector_config_name = manifest["otel_collector_config"]
+            aws_name = manifest["aws"]
         except (FileNotFoundError, KeyError, json.JSONDecodeError) as exc:
             raise OkapiCtlError(f"Okapi bundle {version} was not found or is invalid.") from exc
 
@@ -77,6 +92,7 @@ class BundleAssetResolver:
         }
         otel_compose_source = bundle.joinpath(otel_compose_name)
         otel_collector_config_source = bundle.joinpath(otel_collector_config_name)
+        aws_source = bundle.joinpath(aws_name)
         if (
             not compose_source.is_file()
             or not init_source.is_file()
@@ -84,6 +100,7 @@ class BundleAssetResolver:
             or not all(source.is_file() for source in k8s_values_sources.values())
             or not otel_compose_source.is_file()
             or not otel_collector_config_source.is_file()
+            or not aws_source.is_dir()
         ):
             raise OkapiCtlError(f"Okapi bundle {version} is incomplete.")
 
@@ -95,4 +112,5 @@ class BundleAssetResolver:
             k8s_values_sources=k8s_values_sources,
             otel_compose_source=otel_compose_source,
             otel_collector_config_source=otel_collector_config_source,
+            aws_source=aws_source,
         )

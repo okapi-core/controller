@@ -1,0 +1,184 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.12
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --password \"$${CLICKHOUSE_PASSWORD}\" --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 3s
+      retries: 36
+      start_period: 20s
+    ports:
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - /mnt/okapi-data/clickhouse/data:/var/lib/clickhouse
+      - /mnt/okapi-data/clickhouse/logs:/var/log/clickhouse-server
+      - ./clickhouse-users.xml:/etc/clickhouse-server/users.d/okapi-test.xml:ro
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: okapi_oscar
+      POSTGRES_USER: okapi_oscar_user_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      OKAPI_WEB_DB_PASSWORD: ${OKAPI_WEB_DB_PASSWORD}
+      OKAPI_WEB_DB_MIGRATION_PASSWORD: ${OKAPI_WEB_DB_MIGRATION_PASSWORD}
+      OSCAR_DB_PASSWORD: ${OSCAR_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U okapi_oscar_user_admin -d okapi_oscar"]
+      interval: 5s
+      timeout: 3s
+      retries: 36
+      start_period: 20s
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - /mnt/okapi-data/postgres:/var/lib/postgresql/data
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+
+  vault:
+    image: hashicorp/vault:1.15
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_ROOT_TOKEN}
+    command:
+      - server
+      - -dev
+      - -dev-root-token-id=${VAULT_ROOT_TOKEN}
+    healthcheck:
+      test: ["CMD-SHELL", "vault status -address=http://127.0.0.1:8200"]
+      interval: 5s
+      timeout: 3s
+      retries: 36
+      start_period: 10s
+    ports:
+      - "127.0.0.1:8200:8200"
+
+  vault-init:
+    image: hashicorp/vault:1.15
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_ROOT_TOKEN}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        vault secrets enable -path=secret kv-v2 2>/dev/null || true
+        vault kv put secret/openai value="$${OPENAI_API_KEY}"
+
+  okapi-ch-migrate:
+    image: ${OKAPI_IMAGE_REPO}/okapi-ops:${OKAPI_IMAGE_TAG}
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    command:
+      - ch-migrate
+      - --host
+      - clickhouse
+      - --port
+      - "8123"
+      - --user
+      - default
+      - --password
+      - ${CLICKHOUSE_PASSWORD}
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+
+  okapi-pg-migrate:
+    image: ${OKAPI_IMAGE_REPO}/okapi-ops:${OKAPI_IMAGE_TAG}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      okapi-ch-migrate:
+        condition: service_completed_successfully
+    command:
+      - pg-migrate
+    environment:
+      OKAPI_WEB_DB_MIGRATION_URL: jdbc:postgresql://postgres:5432/okapi_oscar?currentSchema=okapi_web
+      OKAPI_WEB_DB_MIGRATION_USER: okapi_web_migration_user
+      OKAPI_WEB_DB_MIGRATION_PASSWORD: ${OKAPI_WEB_DB_MIGRATION_PASSWORD}
+
+  okapi-ingester:
+    image: ${OKAPI_IMAGE_REPO}/okapi-ingester:${OKAPI_IMAGE_TAG}
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      okapi-pg-migrate:
+        condition: service_completed_successfully
+    command:
+      - --okapi.clickhouse.host=clickhouse
+      - --okapi.clickhouse.port=8123
+      - --okapi.clickhouse.secure=false
+      - --okapi.clickhouse.username=default
+      - --okapi.clickhouse.password=${CLICKHOUSE_PASSWORD}
+      - --okapi.clickhouse.chMetricsWal=/wal/metrics
+      - --okapi.clickhouse.chLogsWal=/wal/logs
+      - --okapi.clickhouse.chTracesWal=/wal/traces
+    ports:
+      - "9009:9009"
+    volumes:
+      - /mnt/okapi-data/wal:/wal
+
+  okapi-oscar:
+    image: ${OKAPI_IMAGE_REPO}/okapi-oscar:${OKAPI_IMAGE_TAG}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      vault-init:
+        condition: service_completed_successfully
+      okapi-pg-migrate:
+        condition: service_completed_successfully
+      okapi-ingester:
+        condition: service_started
+    environment:
+      OKAPI_CLUSTER_ENDPOINT: http://okapi-ingester:9009
+      OSCAR_DB_URL: jdbc:postgresql://postgres:5432/okapi_oscar?currentSchema=okapi_oscar
+      OSCAR_DB_USER: okapi_oscar_user
+      OSCAR_DB_PASSWORD: ${OSCAR_DB_PASSWORD}
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_ROOT_TOKEN}
+    ports:
+      - "127.0.0.1:9002:9002"
+
+  okapi-web:
+    image: ${OKAPI_IMAGE_REPO}/okapi-web:${OKAPI_IMAGE_TAG}
+    depends_on:
+      okapi-ingester:
+        condition: service_started
+      okapi-oscar:
+        condition: service_started
+    environment:
+      OKAPI_CLUSTER_ENDPOINT: http://okapi-ingester:9009
+      OKAPI_OSCAR_ENDPOINT: http://okapi-oscar:9002
+      OKAPI_WEB_DB_URL: jdbc:postgresql://postgres:5432/okapi_oscar?currentSchema=okapi_web
+      OKAPI_WEB_DB_USER: okapi_web_user
+      OKAPI_WEB_DB_PASSWORD: ${OKAPI_WEB_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:9001:9001"
+
+  caddy:
+    image: caddy:2
+    depends_on:
+      okapi-web:
+        condition: service_started
+    environment:
+      OKAPI_HOSTNAME: ${OKAPI_HOSTNAME}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /mnt/okapi-data/caddy/data:/data
+      - /mnt/okapi-data/caddy/config:/config

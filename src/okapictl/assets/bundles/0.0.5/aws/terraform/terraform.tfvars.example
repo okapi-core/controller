@@ -1,0 +1,18 @@
+aws_region       = "eu-west-2"
+project_name     = "okapi-demo"
+domain_name      = "okapiapp.io"
+route53_zone_id  = "Z0000000000000000000"
+okapi_hostname   = "main.okapiapp.io"
+otel_hostname    = "otel.okapiapp.io"
+
+# Replace all demo credentials before applying.
+postgres_password               = "change-me"
+okapi_web_db_password           = "change-me"
+okapi_web_migration_password   = "change-me"
+oscar_db_password               = "change-me"
+clickhouse_password             = "change-me"
+vault_root_token                = "change-me"
+openai_api_key                  = ""
+
+okapi_image_repo = "ghcr.io/okapi-core"
+okapi_image_tag  = "0.0.5"

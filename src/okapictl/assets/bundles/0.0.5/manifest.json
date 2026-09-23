@@ -9,5 +9,6 @@
     "web-values.yaml": "k8s-values/web-values.yaml"
   },
   "otel_compose": "otel-compose.extras.yaml",
-  "otel_collector_config": "otelcol-config-extras.yml"
+  "otel_collector_config": "otelcol-config-extras.yml",
+  "aws": "aws"
 }

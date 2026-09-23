@@ -5,13 +5,14 @@ import sys
 from pathlib import Path
 
 from .assets import BundleAssetResolver
-from .config import KubernetesInstallConfig, LocalDemoConfig, LocalInstallConfig
-from .errors import OkapiCtlError, UnsupportedWorkflowError
+from .config import AwsDemoConfig, KubernetesInstallConfig, LocalDemoConfig, LocalInstallConfig
+from .errors import OkapiCtlError
 from .health import HealthChecker
 from .runner import CommandRunner
 from .workflows.local_install import LocalInstaller
 from .workflows.kubernetes_install import KubernetesInstaller
 from .workflows.local_demo import LocalDemoRunner
+from .workflows.aws_demo import AwsDemoRunner
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -33,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
     demo_modes.add_argument("--aws", action="store_true")
     demo.add_argument("--project-name", default="okapi-otel-demo")
     demo.add_argument("--timeout", type=int, default=300)
+    demo.add_argument("--terraform-vars", type=Path)
+    demo.add_argument("--auto-approve", action="store_true")
 
     return parser
 
@@ -74,7 +77,16 @@ def main(argv: list[str] | None = None) -> int:
             ).run()
             return 0
         if args.command == "demo" and args.aws:
-            raise UnsupportedWorkflowError("AWS demo workflow is not implemented yet.")
+            AwsDemoRunner(
+                AwsDemoConfig(
+                    terraform_vars_file=args.terraform_vars,
+                    auto_approve=args.auto_approve,
+                    timeout_seconds=args.timeout,
+                ),
+                runner=CommandRunner(),
+                asset_resolver=BundleAssetResolver(),
+            ).run()
+            return 0
         raise OkapiCtlError("No workflow selected.")
     except OkapiCtlError as exc:
         print(f"okapictl: {exc}", file=sys.stderr)

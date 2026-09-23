@@ -1,0 +1,35 @@
+#!/bin/bash
+set -euxo pipefail
+
+exec > >(tee /var/log/${project_name}-bootstrap.log | logger -t ${project_name}-bootstrap -s 2>/dev/console) 2>&1
+
+dnf update -y
+dnf install -y docker ruby wget unzip git xfsprogs amazon-ssm-agent python3.14 python3.14-pip awscli
+python3.14 --version
+
+systemctl enable --now docker
+systemctl enable --now amazon-ssm-agent
+
+usermod -aG docker ec2-user || true
+
+mkdir -p /usr/local/lib/docker/cli-plugins
+COMPOSE_VERSION="v2.39.4"
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64) COMPOSE_ARCH="x86_64" ;;
+  aarch64) COMPOSE_ARCH="aarch64" ;;
+  *) echo "unsupported arch: $ARCH" >&2; exit 1 ;;
+esac
+wget -q "https://github.com/docker/compose/releases/download/$COMPOSE_VERSION/docker-compose-linux-$COMPOSE_ARCH" -O /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+cd /tmp
+wget -q "https://aws-codedeploy-${aws_region}.s3.${aws_region}.amazonaws.com/latest/install" -O codedeploy-install
+chmod +x codedeploy-install
+./codedeploy-install auto
+systemctl enable --now codedeploy-agent
+
+mkdir -p /opt/${project_name}
+cat >/etc/${project_name}-role <<'EOF'
+${role}
+EOF

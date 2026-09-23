@@ -50,8 +50,22 @@ okapictl demo --local
 The key is passed to Okapi Oscar through the Compose environment and is not
 stored in the controller bundle. Do not commit it to `.env` or `.env.okapi`.
 
-Kubernetes, AWS, and complete demo workflows are intentionally scaffolded but
-not yet implemented.
+The AWS demo workflow is also bundled with the controller. It provisions the
+demo infrastructure with Terraform and then uses CodeDeploy to deploy the
+Okapi stack followed by the full OpenTelemetry demo. ClickHouse and PostgreSQL
+are part of this AWS demo environment; this is separate from Kubernetes
+installation, where they remain external prerequisites.
+
+Create a private Terraform variables file from the template, fill in at least
+the Route 53 hosted-zone ID and the demo secrets, and run:
+
+```sh
+cp ~/.local/state/okapictl/bundles/0.0.5/aws/terraform/terraform.tfvars.example ./okapi-demo.tfvars
+okapictl demo --aws --terraform-vars ./okapi-demo.tfvars
+```
+
+Use `--auto-approve` for unattended execution. The controller does not store
+Terraform variables in the wheel or print their values.
 
 ## Kubernetes installation
 

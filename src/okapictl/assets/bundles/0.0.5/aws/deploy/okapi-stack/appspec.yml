@@ -1,0 +1,29 @@
+version: 0.0
+os: linux
+
+files:
+  - source: /
+    destination: /opt/okapi-demo/okapi-stack
+    overwrite: true
+
+hooks:
+  ApplicationStop:
+    - location: deploy.py
+      timeout: 300
+      runas: root
+  BeforeInstall:
+    - location: deploy.py
+      timeout: 300
+      runas: root
+  AfterInstall:
+    - location: deploy.py
+      timeout: 900
+      runas: root
+  ApplicationStart:
+    - location: deploy.py
+      timeout: 1200
+      runas: root
+  ValidateService:
+    - location: deploy.py
+      timeout: 600
+      runas: root

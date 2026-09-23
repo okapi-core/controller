@@ -1,0 +1,3 @@
+{$OKAPI_HOSTNAME} {
+  reverse_proxy okapi-web:9001
+}

@@ -53,3 +53,22 @@ class LocalDemoConfig:
     @property
     def state_file(self) -> Path:
         return self.state_directory / "local-demo.json"
+
+
+@dataclass(frozen=True)
+class AwsDemoConfig:
+    """Configuration for the AWS Terraform and CodeDeploy demo."""
+
+    bundle_version: str = OKAPI_VERSION
+    state_directory: Path = Path.home() / ".local" / "state" / "okapictl"
+    terraform_vars_file: Path | None = None
+    auto_approve: bool = False
+    timeout_seconds: int = 1800
+
+    @property
+    def aws_directory(self) -> Path:
+        return self.state_directory / "bundles" / self.bundle_version / "aws"
+
+    @property
+    def state_file(self) -> Path:
+        return self.state_directory / "aws-demo.json"
