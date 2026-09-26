@@ -1,12 +1,17 @@
 [tool.poetry]
 name = "okapi-ctl"
-version = "0.0.5"
+version = "0.0.0"
 description = "The Okapi installation and demo command-line controller"
 authors = ["Okapi contributors"]
 license = "Apache-2.0"
 readme = "README.md"
 packages = [{ include = "okapictl", from = "src" }]
 include = ["src/okapictl/assets/**/*"]
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern = "default-unprefixed"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
@@ -18,5 +23,5 @@ pytest = "^8.0"
 okapictl = "okapictl.cli:main"
 
 [build-system]
-requires = ["poetry-core>=1.8.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core>=1.8.0", "poetry-dynamic-versioning>=1.9,<2.0"]
+build-backend = "poetry_dynamic_versioning.backend"
